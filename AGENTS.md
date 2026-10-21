@@ -90,7 +90,7 @@ The platform runs this lifecycle; do not reimplement any of it:
 7. Append a `succeeded` or `failed` audit row.
 
 Details:
-- Call `ctx.record({ ... })` to save partial results, such as a refund id, before a later step can fail.
+- `ctx.record({ ... })` is the only way to put data in the audit log. Record the ids you need for reconciliation, such as a refund id, before a later step can fail. The handler's return value goes back to the caller and is never persisted, so a reveal action can return a raw value without it reaching the audit log. Never record PII or secrets.
 - Approval modes:
   - `pre` (default): the action waits for an approver. On approval, the platform runs the handler with the stored input and the original idempotency key.
   - `post-hoc` (break-glass): the action runs immediately and opens a review item for someone else.
@@ -115,6 +115,7 @@ const { transaction } = await ctx.connectors.ledger.postTransaction({
     { account: 'processor_receivable', direction: 'credit', amount: refund.amount },
   ],
 });
+ctx.record({ ledgerTransactionId: transaction.id });
 ```
 
 If the ledger call fails after the refund succeeded, the attempt is recorded as `failed` along with the refund id. A retry with the same idempotency key gets the same refund back, and the ledger dedupes on the refund id. Money can never move or post twice.
@@ -146,7 +147,10 @@ If the ledger call fails after the refund succeeded, the attempt is recorded as 
 ## Testing
 
 - Unit tests sit next to the code and run with Vitest against the test database.
-- Helpers in `@/tests/helpers`: `signInAs('<persona>')`, `signOut()`, `useInProcessVendors()` (routes connector calls to the mock vendors in-process).
+- Helpers in `@/tests/helpers`:
+  - `signInAs('<persona>')` and `signOut()`.
+  - `decideAs('<persona>', approvalId, 'approve' | 'reject')` decides an approval request as that persona, who stays signed in. Use it to test approve → execute, blocked self-approval (`SELF_APPROVAL`), and post-hoc reviews.
+  - `useInProcessVendors()` routes connector calls to the mock vendors in-process.
 - `platform/money-movement.test.ts` shows how to prove exactly-once behavior on retry.
 - Every tool needs real tests for its business rules: permission boundaries, approval thresholds, and blocked self-approval.
 

@@ -40,7 +40,7 @@ Replace the scaffold's `it.todo` with real tests in the tool folder. Cover:
 - Approval thresholds, and that self-approval is blocked.
 - For money movement: a retry with the same idempotency key does not move money or post to the ledger twice.
 
-For patterns, see `platform/**/*.test.ts` and the helpers in `tests/helpers.ts` (`signInAs`, `useInProcessVendors`).
+For patterns, see `platform/**/*.test.ts` and the helpers in `tests/helpers.ts`: `signInAs`, `decideAs` (approve or reject as a second persona, and prove self-approval is blocked), and `useInProcessVendors`.
 
 ## 5. Check, then open the PR
 

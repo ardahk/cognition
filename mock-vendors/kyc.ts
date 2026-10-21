@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, or } from 'drizzle-orm';
 import { kycCases, kycNotes } from './schema';
 import { vendorError, type Route } from './router';
 
@@ -60,7 +60,12 @@ export const routes: Route[] = [
       if (after) {
         const [c] = await db.select().from(kycCases).where(eq(kycCases.id, after));
         if (!c) return { status: 404, body: vendorError('not_found', `No such case ${after}`) };
-        conds.push(gt(kycCases.seq, c.seq));
+        conds.push(
+          or(
+            gt(kycCases.createdAt, c.createdAt),
+            and(eq(kycCases.createdAt, c.createdAt), gt(kycCases.seq, c.seq)),
+          ),
+        );
       }
       const rows = await db
         .select()

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkTool } from './conformance';
@@ -38,12 +38,14 @@ function makeClean(dir: string) {
 const rules = (dir: string) => checkTool(dir).then((v) => v.map((x) => x.rule).sort());
 
 describe('checkTool', () => {
+  // checkTool imports tool files, and a re-import in the same process can serve
+  // a stale module — so the "after fix" case uses a fresh scaffold, not a rewrite.
   it('template → exactly TESTS_TODO + DESCRIPTION_TODO; clean after real test + description', async () => {
-    const dir = scaffold('sample-tool');
-    expect(await rules(dir)).toEqual(['DESCRIPTION_TODO', 'TESTS_TODO']);
-    vi.resetModules();
-    makeClean(dir);
-    expect(await checkTool(dir)).toEqual([]);
+    const dirty = scaffold('sample-tool');
+    expect(await rules(dirty)).toEqual(['DESCRIPTION_TODO', 'TESTS_TODO']);
+    const clean = scaffold('sample-tool-2');
+    makeClean(clean);
+    expect(await checkTool(clean)).toEqual([]);
   });
 
   it('flags risk mismatch: payments.refund is critical, not sensitive', async () => {
@@ -88,5 +90,31 @@ describe('checkTool', () => {
     );
     makeClean(dir);
     expect(await rules(dir)).toEqual(['FORBIDDEN_IMPORT']);
+  });
+
+  it('an actions.ts with type annotations imports cleanly (no stale-cache false positive)', async () => {
+    const dir = scaffold('typed-tool');
+    write(
+      dir,
+      'actions.ts',
+      `'use server';
+
+import { z } from 'zod';
+import { defineAction } from '@/platform/module';
+import manifest from './manifest';
+
+const target = (i: { id: string }): { type: string; id: string } => ({ type: 'thing', id: i.id });
+
+export const ping = defineAction(manifest, {
+  name: 'ping',
+  permission: 'typed-tool.view',
+  input: z.object({ id: z.string() }),
+  target,
+  handler: async () => ({ ok: true }),
+});
+`,
+    );
+    makeClean(dir);
+    expect(await checkTool(dir)).toEqual([]);
   });
 });

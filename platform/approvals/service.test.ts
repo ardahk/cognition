@@ -92,6 +92,12 @@ describe('decideApproval', () => {
     expect(refundCalls[0].input.amount).toBe(30_000);
     const [request] = await db.select().from(approvalRequests).where(eq(approvalRequests.id, id));
     expect(request.status).toBe('executed');
+    // Only ctx.record() data is stored; `duplicate` is returned to the caller, never persisted.
+    expect(request.result).toEqual({
+      refundId: expect.stringMatching(/^re_/),
+      ledgerTransactionId: expect.any(String),
+    });
+    expect(request.result).not.toHaveProperty('duplicate');
     const rows = await rowsForKey(key);
     const statuses = rows.map((r) => r.status);
     expect(statuses).toContain('approved');

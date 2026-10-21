@@ -255,6 +255,28 @@ describe('kyc', () => {
       expect(raw).toBe(expected);
     }
   });
+
+  it('paginates /v1/cases without skipping or repeating rows', async () => {
+    const key = process.env.KYC_API_KEY!;
+    const all = await req('/kyc/v1/cases?limit=100', authed(key));
+    const full = ((await all.json()) as { data: { id: string }[] }).data.map((c) => c.id);
+    expect(full).toHaveLength(60);
+
+    const seen: string[] = [];
+    let after: string | undefined;
+    for (let page = 0; ; page++) {
+      if (page > 20) throw new Error('pagination did not terminate');
+      const res = await req(
+        `/kyc/v1/cases?limit=7${after ? `&starting_after=${after}` : ''}`,
+        authed(key),
+      );
+      const body = (await res.json()) as { data: { id: string }[]; has_more: boolean };
+      seen.push(...body.data.map((c) => c.id));
+      if (!body.has_more) break;
+      after = body.data.at(-1)!.id;
+    }
+    expect(seen).toEqual(full);
+  });
 });
 
 describe('flags', () => {

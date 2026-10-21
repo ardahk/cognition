@@ -77,6 +77,14 @@ describe('defineAction', () => {
     expect(result.refundId).toMatch(/^re_/);
   });
 
+  it('a handler that records nothing leaves result null, even though it returns data', async () => {
+    const res = await echo({ message: 'hi', idempotencyKey: KEY });
+    expect(res).toMatchObject({ ok: true, status: 'succeeded', data: { echoed: { message: 'hi' } } });
+    const rows = await auditRows(KEY);
+    expect(rows.map((r) => r.status)).toEqual(['attempted', 'succeeded']);
+    expect(rows[1].result).toBeNull();
+  });
+
   it('commits the attempted row before the handler runs (write-ahead)', async () => {
     const res = await probe({ idempotencyKey: KEY });
     expect(res).toMatchObject({ ok: true, status: 'succeeded' });

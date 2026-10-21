@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { moduleContext } from '@/platform/module';
-import { signInAs, useInProcessVendors } from '@/tests/helpers';
+import { decideAs, signInAs, useInProcessVendors } from '@/tests/helpers';
 import manifest from './manifest';
 import access from './access';
 import { killFlag, setFlag } from './actions';
@@ -171,6 +171,36 @@ describe('production', () => {
     // The platform blocks deciding a request whose requestedById is the decider.
     expect(pending).toMatchObject({ requestedById: 'taylor', approverPermission: 'feature-flags.approve' });
     expect(await getFlag(f.key)).toMatchObject({ environments: f.environments });
+  });
+
+  it('an eng lead approves another engineer\'s production change but not their own', async () => {
+    const f = await takeFlag();
+    signInAs('jordan');
+    const res = await change(f, 'production', true, 10);
+    expect(res).toMatchObject({ ok: true, status: 'pending_approval' });
+    const id = (res as { approvalId: string }).approvalId;
+
+    // jordan has no approve permission, so the request stays pending for taylor.
+    expect(await decideAs('jordan', id, 'approve')).toMatchObject({ ok: false, error: 'FORBIDDEN' });
+    expect(await decideAs('taylor', id, 'approve')).toMatchObject({ ok: true, status: 'executed' });
+    expect((await getFlag(f.key)).environments.production).toEqual({
+      enabled: true,
+      rollout_percentage: 10,
+    });
+
+    const own = await takeFlag();
+    signInAs('taylor');
+    const ownRes = await change(own, 'production', true, 25);
+    expect(ownRes).toMatchObject({ ok: true, status: 'pending_approval' });
+    const ownId = (ownRes as { approvalId: string }).approvalId;
+    expect(await decideAs('taylor', ownId, 'approve')).toMatchObject({
+      ok: false,
+      error: 'SELF_APPROVAL',
+    });
+    expect(await getFlag(own.key)).toMatchObject({
+      environments: own.environments,
+      version: own.version,
+    });
   });
 });
 
