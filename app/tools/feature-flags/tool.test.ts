@@ -1,0 +1,203 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { moduleContext } from '@/platform/module';
+import { signInAs, useInProcessVendors } from '@/tests/helpers';
+import manifest from './manifest';
+import access from './access';
+import { killFlag, setFlag } from './actions';
+import { flagTarget, matchesSearch } from './rules';
+
+type Persona = Parameters<typeof signInAs>[0];
+
+async function as(persona: Persona) {
+  signInAs(persona);
+  return moduleContext(manifest);
+}
+
+async function allFlags() {
+  const ctx = await as('jordan');
+  return (await ctx.connectors.flags.listFlags()).data;
+}
+
+const used = new Set<string>();
+async function takeFlag(pred: (f: Awaited<ReturnType<typeof allFlags>>[number]) => boolean = () => true) {
+  const f = (await allFlags()).find((x) => !used.has(x.key) && pred(x));
+  if (!f) throw new Error('no suitable seeded flag');
+  used.add(f.key);
+  return f;
+}
+
+async function getFlag(key: string) {
+  const ctx = await as('jordan');
+  return ctx.connectors.flags.getFlag(key);
+}
+
+beforeEach(() => {
+  useInProcessVendors();
+});
+
+describe('access', () => {
+  it.each(['alex', 'priya', 'sam', 'morgan'] as const)('%s cannot open the tool (404)', async (p) => {
+    await expect(as(p)).rejects.toThrow('notFound()');
+  });
+
+  it.each(['jordan', 'taylor'] as const)('%s can open the tool', async (p) => {
+    await expect(as(p)).resolves.toBeTruthy();
+  });
+
+  it('grants edit to engineers, kill to on-call, approve to eng leads only', () => {
+    expect(access.grants).toEqual({
+      engineer: ['feature-flags.view', 'feature-flags.edit'],
+      oncall: ['feature-flags.view', 'feature-flags.kill'],
+      eng_lead: ['feature-flags.view', 'feature-flags.approve'],
+    });
+  });
+
+  it('non-engineers cannot change or kill flags', async () => {
+    const f = await takeFlag((x) => x.environments.production.enabled);
+    signInAs('alex');
+    expect(await setFlag({ key: f.key, env: 'development', enabled: 'true', rollout: 50 })).toMatchObject({
+      ok: false,
+      error: 'FORBIDDEN',
+    });
+    expect(await killFlag({ key: f.key, reason: 'Incident 123' })).toMatchObject({ ok: false, error: 'FORBIDDEN' });
+    expect(await getFlag(f.key)).toMatchObject({ environments: f.environments, version: f.version });
+  });
+
+  it('an engineer who is not on call cannot use the kill switch', async () => {
+    const f = await takeFlag((x) => x.environments.production.enabled);
+    signInAs('taylor');
+    expect(await killFlag({ key: f.key, reason: 'Incident 123' })).toMatchObject({ ok: false, error: 'FORBIDDEN' });
+    expect((await getFlag(f.key)).environments.production.enabled).toBe(true);
+  });
+});
+
+describe('development and staging', () => {
+  it.each(['development', 'staging'] as const)('%s changes apply immediately', async (env) => {
+    const f = await takeFlag();
+    signInAs('jordan');
+    const res = await setFlag({ key: f.key, env, enabled: 'true', rollout: '35' });
+    expect(res).toMatchObject({ ok: true, status: 'succeeded', data: { enabled: true, rollout_percentage: 35 } });
+    const after = await getFlag(f.key);
+    expect(after.environments[env]).toEqual({ enabled: true, rollout_percentage: 35 });
+    expect(after.environments.production).toEqual(f.environments.production);
+    expect(after.updated_by).toBe('jordan@fernpay.test');
+  });
+
+  it('rejects rollout outside 0–100 and unknown environments', async () => {
+    const f = await takeFlag();
+    signInAs('jordan');
+    for (const input of [
+      { env: 'staging', enabled: 'true', rollout: 101 },
+      { env: 'staging', enabled: 'true', rollout: -1 },
+      { env: 'qa', enabled: 'true', rollout: 10 },
+    ]) {
+      expect(await setFlag({ key: f.key, ...input })).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
+    }
+  });
+});
+
+describe('production', () => {
+  it('a production change waits for eng lead approval and does not apply yet', async () => {
+    const f = await takeFlag();
+    signInAs('jordan');
+    const res = await setFlag({ key: f.key, env: 'production', enabled: 'true', rollout: 10 });
+    expect(res).toMatchObject({ ok: true, status: 'pending_approval' });
+    expect(await getFlag(f.key)).toMatchObject({ environments: f.environments, version: f.version });
+
+    const ctx = await as('taylor');
+    const [pending] = await ctx.pendingApprovals(flagTarget(f.key));
+    expect(pending).toMatchObject({
+      mode: 'pre',
+      status: 'pending',
+      action: 'flag.set',
+      approverPermission: 'feature-flags.approve',
+      requestedById: 'jordan',
+      input: { key: f.key, env: 'production', enabled: true, rollout: 10 },
+    });
+  });
+
+  it('an eng lead who requests a production change still needs a different approver', async () => {
+    const f = await takeFlag();
+    signInAs('taylor');
+    const res = await setFlag({ key: f.key, env: 'production', enabled: 'false', rollout: 0 });
+    expect(res).toMatchObject({ ok: true, status: 'pending_approval' });
+    const ctx = await as('taylor');
+    const [pending] = await ctx.pendingApprovals(flagTarget(f.key));
+    // The platform blocks deciding a request whose requestedById is the decider.
+    expect(pending).toMatchObject({ requestedById: 'taylor', approverPermission: 'feature-flags.approve' });
+    expect(await getFlag(f.key)).toMatchObject({ environments: f.environments });
+  });
+});
+
+describe('kill switch', () => {
+  it('turns production off immediately and opens a review for an eng lead', async () => {
+    const f = await takeFlag((x) => x.environments.production.enabled);
+    signInAs('jordan');
+    const res = await killFlag({ key: f.key, reason: 'Error spike, INC-42' });
+    expect(res).toMatchObject({ ok: true, status: 'succeeded', data: { enabled: false } });
+    expect((res as { reviewId?: string }).reviewId).toBeTruthy();
+
+    const after = await getFlag(f.key);
+    expect(after.environments.production.enabled).toBe(false);
+    expect(after.environments.development).toEqual(f.environments.development);
+    expect(after.environments.staging).toEqual(f.environments.staging);
+
+    const ctx = await as('taylor');
+    const [review] = await ctx.pendingApprovals(flagTarget(f.key));
+    expect(review).toMatchObject({
+      mode: 'post-hoc',
+      status: 'pending_review',
+      action: 'flag.kill',
+      approverPermission: 'feature-flags.approve',
+      requestedById: 'jordan',
+    });
+    expect(review.reason).toContain('Error spike, INC-42');
+  });
+
+  it('requires a reason', async () => {
+    const f = await takeFlag((x) => x.environments.production.enabled);
+    signInAs('jordan');
+    expect(await killFlag({ key: f.key })).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
+    expect(await killFlag({ key: f.key, reason: ' ' })).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
+    expect((await getFlag(f.key)).environments.production.enabled).toBe(true);
+  });
+
+  it('refuses a flag that is already off in production', async () => {
+    const f = await takeFlag((x) => !x.environments.production.enabled);
+    signInAs('jordan');
+    expect(await killFlag({ key: f.key, reason: 'Just in case' })).toMatchObject({ ok: false, error: 'FAILED' });
+    expect(await getFlag(f.key)).toMatchObject({ version: f.version });
+  });
+});
+
+describe('history', () => {
+  it('records each change against the flag', async () => {
+    const f = await takeFlag((x) => x.environments.production.enabled);
+    signInAs('jordan');
+    await setFlag({ key: f.key, env: 'staging', enabled: 'false', rollout: 0 });
+    await setFlag({ key: f.key, env: 'production', enabled: 'true', rollout: 100 });
+    await killFlag({ key: f.key, reason: 'Rollback for INC-7' });
+
+    const ctx = await as('jordan');
+    const trail = await ctx.auditTrail(flagTarget(f.key));
+    const seen = trail.map((e) => `${e.action}:${e.status}`);
+    expect(seen).toEqual(
+      expect.arrayContaining([
+        'feature-flags.flag.set:succeeded',
+        'feature-flags.flag.set:pending_approval',
+        'feature-flags.flag.kill:succeeded',
+      ]),
+    );
+    expect(trail.every((e) => e.actorEmail === 'jordan@fernpay.test')).toBe(true);
+  });
+});
+
+describe('search', () => {
+  const flag = { key: 'new-checkout-flow', name: 'New checkout flow', tags: ['checkout', 'web'] };
+  it('matches key, name, or tag case-insensitively', () => {
+    expect(matchesSearch(flag, undefined)).toBe(true);
+    expect(matchesSearch(flag, 'CHECKOUT-flow')).toBe(true);
+    expect(matchesSearch(flag, 'web')).toBe(true);
+    expect(matchesSearch(flag, 'ledger')).toBe(false);
+  });
+});
