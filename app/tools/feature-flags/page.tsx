@@ -16,7 +16,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
     <div>
       <PageHeader title={manifest.name} description="Every flag in the flag service, by environment." />
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-        <SearchForm placeholder="Search by key, name, or tag" />
+        <SearchForm key={q ?? ''} placeholder="Search by key, name, or tag" />
         {tag ? (
           <span className="flex items-center gap-2">
             Tag <Badge variant="secondary">{tag}</Badge>

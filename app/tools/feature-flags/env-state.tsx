@@ -12,7 +12,7 @@ export function EnvState({ state }: { state: { enabled: boolean; rollout_percent
           : 'text-muted-foreground',
       )}
     >
-      {state.enabled ? `On · ${state.rollout_percentage}%` : 'Off'}
+      {state.enabled ? 'On' : 'Off'} · {state.rollout_percentage}%
     </Badge>
   );
 }
