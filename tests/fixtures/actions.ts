@@ -59,6 +59,7 @@ export const refund = defineAction(manifest, {
         { account: 'processor_receivable', direction: 'credit', amount: refund.amount },
       ],
     });
+    ctx.record({ ledgerTransactionId: transaction.id });
     return { refundId: refund.id, ledgerTransactionId: transaction.id, duplicate };
   },
 });

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { manifestSchema, type ModuleAccess } from './define';
@@ -13,12 +13,6 @@ const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
 const USE_SERVER_RE = /(['"])use server\1/;
 const TEST_FILE_RE = /\.test\.tsx?$/;
 const REAL_TEST_RE = /\b(?:it|test)\s*\(/;
-
-// Import with an mtime query so a file rewritten between two checkTool calls
-// is re-evaluated instead of served from the module cache.
-function freshImport(file: string) {
-  return import(`${file}?v=${statSync(file).mtimeMs}`);
-}
 
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -87,7 +81,7 @@ export async function checkTool(dir: string): Promise<Violation[]> {
   } else {
     let raw: unknown;
     try {
-      raw = (await freshImport(manifestFile)).default;
+      raw = (await import(manifestFile)).default;
     } catch (e) {
       fail('MANIFEST_INVALID', manifestFile, e instanceof Error ? e.message : String(e));
     }
@@ -115,7 +109,7 @@ export async function checkTool(dir: string): Promise<Violation[]> {
   if (manifest && existsSync(accessFile)) {
     let access: ModuleAccess | undefined;
     try {
-      access = (await freshImport(accessFile)).default;
+      access = (await import(accessFile)).default;
     } catch (e) {
       fail('ACCESS_INVALID', accessFile, e instanceof Error ? e.message : String(e));
     }
@@ -148,7 +142,7 @@ export async function checkTool(dir: string): Promise<Violation[]> {
     }
     let exports: Record<string, unknown> = {};
     try {
-      exports = await freshImport(actionsFile);
+      exports = await import(actionsFile);
     } catch (e) {
       fail('ACTION_UNWRAPPED', actionsFile, e instanceof Error ? e.message : String(e));
     }

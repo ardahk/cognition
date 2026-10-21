@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -107,13 +108,15 @@ export function AppShell({
                 render={<Button variant="outline" size="sm">Switch persona</Button>}
               />
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Signed in as {user.email}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {personas.map((p) => (
-                  <DropdownMenuItem key={p.id} onClick={() => signInAs(p.id, pathname)}>
-                    {p.name}
-                  </DropdownMenuItem>
-                ))}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Signed in as {user.email}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {personas.map((p) => (
+                    <DropdownMenuItem key={p.id} onClick={() => signInAs(p.id, pathname)}>
+                      {p.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="ghost" size="sm" onClick={() => signOut()}>

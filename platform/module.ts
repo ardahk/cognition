@@ -97,8 +97,8 @@ export async function execute<M extends ModuleManifest>(
     approvedBy?: SessionUser;
   },
 ): Promise<
-  | { ok: true; data: unknown; attemptId: string }
-  | { ok: false; error: 'FAILED'; message: string; attemptId: string }
+  | { ok: true; data: unknown; attemptId: string; recorded: Record<string, unknown> | null }
+  | { ok: false; error: 'FAILED'; message: string; attemptId: string; recorded: Record<string, unknown> | null }
 > {
   const { module: manifest, name, spec } = meta;
   const attemptId = randomUUID();
@@ -132,21 +132,19 @@ export async function execute<M extends ModuleManifest>(
   };
   try {
     const data = await spec.handler({ input, ctx } as never);
-    const result =
-      typeof data === 'object' && data !== null && !Array.isArray(data)
-        ? { ...recorded, ...(data as Record<string, unknown>) }
-        : { ...recorded, value: data };
-    await writeAudit({ ...base, status: 'succeeded', result });
-    return { ok: true, data, attemptId };
+    const persisted = Object.keys(recorded).length ? recorded : null;
+    await writeAudit({ ...base, status: 'succeeded', result: persisted });
+    return { ok: true, data, attemptId, recorded: persisted };
   } catch (e) {
     const message = errorMessage(e);
+    const persisted = Object.keys(recorded).length ? recorded : null;
     await writeAudit({
       ...base,
       status: 'failed',
       error: message,
-      result: Object.keys(recorded).length ? recorded : null,
+      result: persisted,
     });
-    return { ok: false, error: 'FAILED', message, attemptId };
+    return { ok: false, error: 'FAILED', message, attemptId, recorded: persisted };
   }
 }
 

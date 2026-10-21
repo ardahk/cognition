@@ -10,7 +10,7 @@ You are reviewing changes to Fernpay's internal-tools platform. These tools move
 4. **Moves money or changes production behavior without the approval rule the request asked for**, or lets anyone approve or review their own request.
 5. **Calls a connector inside a DB transaction**, or makes a state-changing connector call without `ctx.idempotencyKey`.
 6. **Posts to the ledger with an `externalId` other than the source object's id** (for refunds, the refund id), or does anything else that lets a retry post twice.
-7. **Mishandles PII:** sends unmasked PII to the client, logs it, or reveals it without an audited action that requires a reason.
+7. **Mishandles PII:** sends unmasked PII to the client, logs it, passes it to `ctx.record` (which writes to the append-only audit log), or reveals it without an audited action that requires a reason.
 8. **Exposes secrets or vendor keys to the client**, or puts anything sensitive in a `NEXT_PUBLIC_` variable.
 9. **Edits shared code in a single-tool PR.** A PR meant to build or change one tool must not touch `platform/`, `mock-vendors/`, `templates/`, `.github/`, `.agents/`, `AGENTS.md`, or `REVIEW.md`.
 10. **Weakens a guardrail to get CI passing:** lint rules, conformance checks, tests, or the audit trigger.

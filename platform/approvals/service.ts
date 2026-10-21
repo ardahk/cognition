@@ -133,7 +133,7 @@ export async function decideApproval(
     .set({
       status: result.ok ? 'executed' : 'failed',
       attemptId: result.attemptId,
-      result: result.ok ? result.data : null,
+      result: result.recorded,
       error: result.ok ? null : result.message,
     })
     .where(eq(approvalRequests.id, id));

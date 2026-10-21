@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { moduleContext } from '@/platform/module';
-import { signInAs, useInProcessVendors } from '@/tests/helpers';
+import { decideAs, signInAs, useInProcessVendors } from '@/tests/helpers';
 import manifest from './manifest';
 import access from './access';
 import { addNote, approveCase, assignToMe, declineCase, escalateCase, requestInfo, revealPii } from './actions';
@@ -106,6 +106,28 @@ describe('approve', () => {
     });
   });
 
+  it('a compliance officer signs off, the case is decided as the analyst, and the request cannot be decided twice', async () => {
+    const c = await takeCase((x) => x.risk_score >= 70);
+    signInAs('sam');
+    const res = await approveCase({ caseId: c.id, signoff: 'true' });
+    expect(res).toMatchObject({ ok: true, status: 'pending_approval' });
+    const approvalId = (res as { approvalId: string }).approvalId;
+
+    expect(await decideAs('morgan', approvalId, 'approve')).toMatchObject({
+      ok: true,
+      status: 'executed',
+    });
+    const ctx = await as('morgan');
+    const after = await ctx.connectors.kyc.getCase(c.id);
+    expect(after.status).toBe('approved');
+    expect(after.decision).toMatchObject({ outcome: 'approve', decided_by: 'sam@fernpay.test' });
+
+    expect(await decideAs('morgan', approvalId, 'approve')).toMatchObject({
+      ok: false,
+      error: 'NOT_PENDING',
+    });
+  });
+
   it('a watchlist hit waits for sign-off even with a low score', async () => {
     const c = await takeCase((x) => x.watchlist.status === 'hit');
     signInAs('sam');
@@ -194,7 +216,8 @@ describe('PII', () => {
     });
     const res = await revealPii({ caseId: c.id, field: 'dob', reason: 'Age check for case review' });
     expect(res).toMatchObject({ ok: true, status: 'succeeded' });
-    expect((res as { data: { value: string } }).data.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const value = (res as { data: { value: string } }).data.value;
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
     const ctx = await as('morgan');
     const trail = await ctx.auditTrail({ type: 'kyc_case', id: c.id });
@@ -203,5 +226,8 @@ describe('PII', () => {
       actorEmail: 'morgan@fernpay.test',
       input: { caseId: c.id, field: 'dob', reason: 'Age check for case review' },
     });
+    // The raw value reaches the caller only — it must not land in the audit log.
+    expect(reveal?.result).toBeNull();
+    expect(JSON.stringify(trail)).not.toContain(value);
   });
 });
