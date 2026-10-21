@@ -98,6 +98,7 @@ export default async function FlagPage({ params }: { params: Promise<{ key: stri
             >
               {canEdit ? (
                 <ActionForm
+                  key={`${state.enabled}:${state.rollout_percentage}`}
                   action={setFlag}
                   hidden={{
                     key: flag.key,
