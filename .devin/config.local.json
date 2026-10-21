@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Exec(git)",
-      "Exec(ls)"
-    ]
-  }
-}

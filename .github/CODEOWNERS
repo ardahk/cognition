@@ -1,0 +1,20 @@
+# @ardahk stands in for every team in this demo. The intended owning team is noted above each group.
+
+# Platform team: default owner
+*                           @ardahk
+
+# Platform team: the paved road, shared tooling, and agent instructions
+/platform/                  @ardahk
+/mock-vendors/              @ardahk
+/templates/                 @ardahk
+/scripts/                   @ardahk
+/.github/                   @ardahk
+/.agents/                   @ardahk
+/devin/                     @ardahk
+/AGENTS.md                  @ardahk
+/REVIEW.md                  @ardahk
+
+# Security team: identity, access grants, and tool risk declarations
+/platform/auth/             @ardahk
+/app/tools/*/access.ts      @ardahk
+/app/tools/*/manifest.ts    @ardahk

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: toolyard
+          POSTGRES_PASSWORD: toolyard
+          POSTGRES_DB: toolyard_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U toolyard -d toolyard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://toolyard:toolyard@localhost:5433/toolyard_test
+      TEST_DATABASE_URL: postgres://toolyard:toolyard@localhost:5433/toolyard_test
+      SESSION_SECRET: ci-only-session-secret-0123456789abcdef0123
+      AUTH_MODE: mock
+      VENDOR_BASE_URL: http://localhost:3000/api/mock
+      PAYMENTS_API_KEY: sk_test_payments_ci
+      KYC_API_KEY: sk_test_kyc_ci
+      LEDGER_API_KEY: sk_test_ledger_ci
+      FLAGS_API_KEY: sk_test_flags_ci
+      NEXT_PUBLIC_TOOL_REQUESTS_URL: https://slack.com/app_redirect?channel=tool-requests
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build

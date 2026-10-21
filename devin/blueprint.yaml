@@ -1,0 +1,22 @@
+# Devin environment blueprint for ardahk/cognition (Settings → Environment → Blueprints → repository).
+# Alternative: ask Devin "Set up your environment for this repository" and compare with this file.
+initialize: |
+  if ! node -v 2>/dev/null | grep -q '^v24'; then
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+    export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
+    nvm install 24 && nvm alias default 24
+  fi
+maintenance: |
+  cp -n .env.example .env
+  docker compose up -d db
+  npm install
+  npm run setup
+knowledge:
+  - name: setup
+    contents: cp -n .env.example .env && docker compose up -d db && npm install && npm run setup
+  - name: dev
+    contents: npm run dev (http://localhost:3000, sign in at /login as a persona from AGENTS.md)
+  - name: check
+    contents: npm run check (registry + typecheck + lint + tests); must pass before opening a PR
+  - name: build
+    contents: npm run build
