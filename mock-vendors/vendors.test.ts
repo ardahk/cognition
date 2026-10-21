@@ -9,7 +9,7 @@ import { createFlagsConnector } from '@/platform/connectors/flags';
 import { inProcessFetch, useInProcessVendors } from '@/tests/helpers';
 
 const BASE = 'http://vendors.test/api/mock';
-const KEY = 'sk_test_payments_local';
+const KEY = process.env.PAYMENTS_API_KEY!;
 
 const req = (path: string, init?: RequestInit) => inProcessFetch(`${BASE}${path}`, init);
 const authed = (key = KEY, init?: RequestInit) => ({
