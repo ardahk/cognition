@@ -3,9 +3,10 @@
 import { z } from 'zod';
 import { defineAction } from '@/platform/module';
 import manifest from './manifest';
-import { ENVIRONMENTS, flagTarget } from './rules';
+import { ENVIRONMENTS, flagTarget, isStale, onOff } from './rules';
 
 const key = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/);
+const rollout = z.coerce.number().int().min(0).max(100);
 
 export const setFlag = defineAction(manifest, {
   name: 'flag.set',
@@ -14,17 +15,23 @@ export const setFlag = defineAction(manifest, {
     key,
     env: z.enum(ENVIRONMENTS),
     enabled: z.stringbool(),
-    rollout: z.coerce.number().int().min(0).max(100),
+    rollout,
+    fromEnabled: z.stringbool(),
+    fromRollout: rollout,
   }),
   target: (i) => flagTarget(i.key),
   approval: (i) =>
     i.env === 'production'
       ? {
           permission: 'feature-flags.approve',
-          reason: `Production change to ${i.key}: ${i.enabled ? 'on' : 'off'}, rollout ${i.rollout}%`,
+          reason: `Production change to ${i.key}: ${onOff(i.fromEnabled, i.fromRollout)} → ${onOff(i.enabled, i.rollout)}`,
         }
       : null,
   handler: async ({ input, ctx }) => {
+    const current = (await ctx.connectors.flags.getFlag(input.key)).environments[input.env];
+    if (isStale(current, input)) {
+      throw new Error(`${input.key} changed in ${input.env} since this change was requested. Reload and try again.`);
+    }
     if (ctx.approvedBy) ctx.record({ approvedBy: ctx.approvedBy.email });
     const flag = await ctx.connectors.flags.setEnvironment(input.key, input.env, {
       enabled: input.enabled,
@@ -47,10 +54,6 @@ export const killFlag = defineAction(manifest, {
     reason: `Kill switch: ${i.key} turned off in production. Reason: ${i.reason}`,
   }),
   handler: async ({ input, ctx }) => {
-    const current = await ctx.connectors.flags.getFlag(input.key);
-    if (!current.environments.production.enabled) {
-      throw new Error(`${input.key} is already off in production`);
-    }
     const flag = await ctx.connectors.flags.setEnvironment(input.key, 'production', {
       enabled: false,
       actor: ctx.user.email,

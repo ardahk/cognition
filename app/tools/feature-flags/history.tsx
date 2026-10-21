@@ -1,4 +1,5 @@
 import { RelativeTime, StatusBadge } from '@/platform/ui';
+import { onOff } from './rules';
 
 type AuditRow = {
   id: number;
@@ -13,7 +14,14 @@ type AuditRow = {
   error: string | null;
 };
 
-type Input = { env?: string; enabled?: boolean; rollout?: number; reason?: string };
+type Input = {
+  env?: string;
+  enabled?: boolean;
+  rollout?: number;
+  fromEnabled?: boolean;
+  fromRollout?: number;
+  reason?: string;
+};
 
 const ACTION_LABELS: Record<string, string> = {
   'feature-flags.flag.set': 'Change',
@@ -23,7 +31,9 @@ const ACTION_LABELS: Record<string, string> = {
 function describe(input: Input | undefined) {
   if (!input) return null;
   if (input.reason !== undefined) return `production → off. Reason: ${input.reason}`;
-  if (input.env) return `${input.env} → ${input.enabled ? `on, rollout ${input.rollout}%` : 'off'}`;
+  if (input.env) {
+    return `${input.env}: ${onOff(input.fromEnabled, input.fromRollout)} → ${onOff(input.enabled, input.rollout)}`;
+  }
   return null;
 }
 

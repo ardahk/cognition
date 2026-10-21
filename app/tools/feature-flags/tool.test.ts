@@ -4,7 +4,7 @@ import { signInAs, useInProcessVendors } from '@/tests/helpers';
 import manifest from './manifest';
 import access from './access';
 import { killFlag, setFlag } from './actions';
-import { flagTarget, matchesSearch } from './rules';
+import { flagTarget, isStale, matchesSearch } from './rules';
 
 type Persona = Parameters<typeof signInAs>[0];
 
@@ -26,9 +26,31 @@ async function takeFlag(pred: (f: Awaited<ReturnType<typeof allFlags>>[number]) 
   return f;
 }
 
+async function peekFlag(pred: (f: Awaited<ReturnType<typeof allFlags>>[number]) => boolean) {
+  const f = (await allFlags()).find((x) => !used.has(x.key) && pred(x));
+  if (!f) throw new Error('no suitable seeded flag');
+  return f;
+}
+
 async function getFlag(key: string) {
   const ctx = await as('jordan');
   return ctx.connectors.flags.getFlag(key);
+}
+
+type Flag = Awaited<ReturnType<typeof getFlag>>;
+type Env = keyof Flag['environments'];
+
+function change(f: Flag, env: Env, enabled: boolean, rollout: number | string, extra: Record<string, unknown> = {}) {
+  const from = f.environments[env];
+  return setFlag({
+    key: f.key,
+    env,
+    enabled: String(enabled),
+    rollout,
+    fromEnabled: String(from.enabled),
+    fromRollout: String(from.rollout_percentage),
+    ...extra,
+  });
 }
 
 beforeEach(() => {
@@ -53,9 +75,9 @@ describe('access', () => {
   });
 
   it('non-engineers cannot change or kill flags', async () => {
-    const f = await takeFlag((x) => x.environments.production.enabled);
+    const f = await peekFlag((x) => x.environments.production.enabled);
     signInAs('alex');
-    expect(await setFlag({ key: f.key, env: 'development', enabled: 'true', rollout: 50 })).toMatchObject({
+    expect(await change(f, 'development', true, 50)).toMatchObject({
       ok: false,
       error: 'FORBIDDEN',
     });
@@ -64,7 +86,7 @@ describe('access', () => {
   });
 
   it('an engineer who is not on call cannot use the kill switch', async () => {
-    const f = await takeFlag((x) => x.environments.production.enabled);
+    const f = await peekFlag((x) => x.environments.production.enabled);
     signInAs('taylor');
     expect(await killFlag({ key: f.key, reason: 'Incident 123' })).toMatchObject({ ok: false, error: 'FORBIDDEN' });
     expect((await getFlag(f.key)).environments.production.enabled).toBe(true);
@@ -75,7 +97,7 @@ describe('development and staging', () => {
   it.each(['development', 'staging'] as const)('%s changes apply immediately', async (env) => {
     const f = await takeFlag();
     signInAs('jordan');
-    const res = await setFlag({ key: f.key, env, enabled: 'true', rollout: '35' });
+    const res = await change(f, env, true, '35');
     expect(res).toMatchObject({ ok: true, status: 'succeeded', data: { enabled: true, rollout_percentage: 35 } });
     const after = await getFlag(f.key);
     expect(after.environments[env]).toEqual({ enabled: true, rollout_percentage: 35 });
@@ -87,11 +109,12 @@ describe('development and staging', () => {
     const f = await takeFlag();
     signInAs('jordan');
     for (const input of [
-      { env: 'staging', enabled: 'true', rollout: 101 },
-      { env: 'staging', enabled: 'true', rollout: -1 },
-      { env: 'qa', enabled: 'true', rollout: 10 },
+      { rollout: 101 },
+      { rollout: -1 },
+      { env: 'qa' },
+      { fromEnabled: undefined },
     ]) {
-      expect(await setFlag({ key: f.key, ...input })).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
+      expect(await change(f, 'staging', true, 10, input)).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
     }
   });
 });
@@ -100,7 +123,7 @@ describe('production', () => {
   it('a production change waits for eng lead approval and does not apply yet', async () => {
     const f = await takeFlag();
     signInAs('jordan');
-    const res = await setFlag({ key: f.key, env: 'production', enabled: 'true', rollout: 10 });
+    const res = await change(f, 'production', true, 10);
     expect(res).toMatchObject({ ok: true, status: 'pending_approval' });
     expect(await getFlag(f.key)).toMatchObject({ environments: f.environments, version: f.version });
 
@@ -116,10 +139,32 @@ describe('production', () => {
     });
   });
 
+  it('a change requested against a state that has since changed is refused', async () => {
+    const f = await takeFlag((x) => x.environments.staging.enabled);
+    signInAs('jordan');
+    expect(await change(f, 'staging', false, 0)).toMatchObject({ ok: true, status: 'succeeded' });
+    // A second change built from the stale page state (e.g. a queued approval after a kill) must not overwrite.
+    const stale = await change(f, 'staging', true, 100);
+    expect(stale).toMatchObject({ ok: false, error: 'FAILED' });
+    expect((stale as { message: string }).message).toContain('changed in staging');
+    expect((await getFlag(f.key)).environments.staging).toEqual({ enabled: false, rollout_percentage: 0 });
+  });
+
+  it('a retry of a successful change with the same idempotency key replays instead of failing', async () => {
+    const f = await takeFlag();
+    signInAs('jordan');
+    const idempotencyKey = crypto.randomUUID();
+    const first = await change(f, 'development', true, 42, { idempotencyKey });
+    const retry = await change(f, 'development', true, 42, { idempotencyKey });
+    expect(first).toMatchObject({ ok: true, status: 'succeeded' });
+    expect(retry).toMatchObject({ ok: true, status: 'succeeded', data: { rollout_percentage: 42 } });
+    expect((await getFlag(f.key)).version).toBe(f.version + 1);
+  });
+
   it('an eng lead who requests a production change still needs a different approver', async () => {
     const f = await takeFlag();
     signInAs('taylor');
-    const res = await setFlag({ key: f.key, env: 'production', enabled: 'false', rollout: 0 });
+    const res = await change(f, 'production', false, 0);
     expect(res).toMatchObject({ ok: true, status: 'pending_approval' });
     const ctx = await as('taylor');
     const [pending] = await ctx.pendingApprovals(flagTarget(f.key));
@@ -155,18 +200,24 @@ describe('kill switch', () => {
   });
 
   it('requires a reason', async () => {
-    const f = await takeFlag((x) => x.environments.production.enabled);
+    const f = await peekFlag((x) => x.environments.production.enabled);
     signInAs('jordan');
     expect(await killFlag({ key: f.key })).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
     expect(await killFlag({ key: f.key, reason: ' ' })).toMatchObject({ ok: false, error: 'INVALID_INPUT' });
     expect((await getFlag(f.key)).environments.production.enabled).toBe(true);
   });
 
-  it('refuses a flag that is already off in production', async () => {
-    const f = await takeFlag((x) => !x.environments.production.enabled);
+  it('a retry with the same idempotency key succeeds without a second write', async () => {
+    const f = await takeFlag((x) => x.environments.production.enabled);
     signInAs('jordan');
-    expect(await killFlag({ key: f.key, reason: 'Just in case' })).toMatchObject({ ok: false, error: 'FAILED' });
-    expect(await getFlag(f.key)).toMatchObject({ version: f.version });
+    const idempotencyKey = crypto.randomUUID();
+    expect(await killFlag({ key: f.key, reason: 'INC-9 retry', idempotencyKey })).toMatchObject({ ok: true });
+    expect(await killFlag({ key: f.key, reason: 'INC-9 retry', idempotencyKey })).toMatchObject({
+      ok: true,
+      status: 'succeeded',
+      data: { enabled: false },
+    });
+    expect(await getFlag(f.key)).toMatchObject({ version: f.version + 1 });
   });
 });
 
@@ -174,8 +225,8 @@ describe('history', () => {
   it('records each change against the flag', async () => {
     const f = await takeFlag((x) => x.environments.production.enabled);
     signInAs('jordan');
-    await setFlag({ key: f.key, env: 'staging', enabled: 'false', rollout: 0 });
-    await setFlag({ key: f.key, env: 'production', enabled: 'true', rollout: 100 });
+    await change(f, 'staging', false, 0);
+    await change(f, 'production', true, 100);
     await killFlag({ key: f.key, reason: 'Rollback for INC-7' });
 
     const ctx = await as('jordan');
@@ -189,6 +240,18 @@ describe('history', () => {
       ]),
     );
     expect(trail.every((e) => e.actorEmail === 'jordan@fernpay.test')).toBe(true);
+  });
+});
+
+describe('isStale', () => {
+  const c = { fromEnabled: true, fromRollout: 25, enabled: true, rollout: 50 };
+  it('is fresh in the requested-from state or already in the target state', () => {
+    expect(isStale({ enabled: true, rollout_percentage: 25 }, c)).toBe(false);
+    expect(isStale({ enabled: true, rollout_percentage: 50 }, c)).toBe(false);
+  });
+  it('is stale after any other change, e.g. a kill', () => {
+    expect(isStale({ enabled: false, rollout_percentage: 25 }, c)).toBe(true);
+    expect(isStale({ enabled: true, rollout_percentage: 10 }, c)).toBe(true);
   });
 });
 

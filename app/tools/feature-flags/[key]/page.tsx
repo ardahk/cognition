@@ -99,7 +99,12 @@ export default async function FlagPage({ params }: { params: Promise<{ key: stri
               {canEdit ? (
                 <ActionForm
                   action={setFlag}
-                  hidden={{ key: flag.key, env }}
+                  hidden={{
+                    key: flag.key,
+                    env,
+                    fromEnabled: String(state.enabled),
+                    fromRollout: String(state.rollout_percentage),
+                  }}
                   submitLabel={prod ? 'Request approval' : 'Save'}
                   className="flex flex-col gap-2 text-sm"
                 >
