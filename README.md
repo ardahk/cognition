@@ -2,8 +2,6 @@
 
 **A thin, owned paved road for internal tools. Devin builds the tools and keeps them running.**
 
-This is a Cognition take-home. The setup: Fernpay, a fictional Series C fintech with about 60 engineers, pays roughly $250K a year for an internal-tools platform like Microsoft Power Apps. It runs three apps on it today (a KYC review queue, a refunds dashboard, and a feature-flag admin) and plans at least 10 more. The question is whether Devin can replace the platform.
-
 - **The answer:** [`docs/recommendation.md`](docs/recommendation.md).
 - **Why the prototype looks the way it does:** [`docs/key-decisions.md`](docs/key-decisions.md).
 - **Demo video:** _link added after recording_ (script: [`docs/demo-script.md`](docs/demo-script.md)).
