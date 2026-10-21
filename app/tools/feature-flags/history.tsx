@@ -32,7 +32,8 @@ function describe(input: Input | undefined) {
   if (!input) return null;
   if (input.reason !== undefined) return `production → off. Reason: ${input.reason}`;
   if (input.env) {
-    return `${input.env}: ${onOff(input.fromEnabled, input.fromRollout)} → ${onOff(input.enabled, input.rollout)}`;
+    const from = input.fromEnabled === undefined ? '' : `${onOff(input.fromEnabled, input.fromRollout)} → `;
+    return `${input.env}: ${from}${onOff(input.enabled, input.rollout)}`;
   }
   return null;
 }
