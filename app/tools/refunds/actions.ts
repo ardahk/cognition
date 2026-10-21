@@ -29,8 +29,6 @@ export const issueRefund = defineAction(manifest, {
       if (!isRetry && needsApproval(payment.amount_refunded, input.amount)) {
         throw new Error('Refunds on this payment would now total over $250. Reload the page and request approval.');
       }
-    } else {
-      ctx.record({ approvedBy: ctx.approvedBy.email });
     }
     const refund = await ctx.connectors.payments.createRefund({
       paymentId: input.paymentId,

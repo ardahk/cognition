@@ -2,7 +2,7 @@ import { moduleContext } from '@/platform/module';
 import { CursorPager, DataTable, Money, PageHeader, RelativeTime, SearchForm, StatusBadge } from '@/platform/ui';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import manifest from './manifest';
-import { startOfUtcDay, summarizeRefunds } from './rules';
+import { maskEmail, startOfUtcDay, summarizeRefunds } from './rules';
 
 const LIMIT = 25;
 
@@ -77,7 +77,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
           empty={query ? 'No payments match this search' : 'No payments'}
           columns={[
             { header: 'Payment', cell: (p) => <span className="font-mono text-xs">{p.id}</span> },
-            { header: 'Customer', cell: (p) => p.customer.email },
+            { header: 'Customer', cell: (p) => maskEmail(p.customer.email) },
             { header: 'Card', cell: (p) => `${p.payment_method.brand} •••• ${p.payment_method.last4}` },
             { header: 'Amount', cell: (p) => <Money amount={p.amount} currency={p.currency} />, className: 'text-right' },
             { header: 'Refunded', cell: (p) => <Money amount={p.amount_refunded} currency={p.currency} />, className: 'text-right' },

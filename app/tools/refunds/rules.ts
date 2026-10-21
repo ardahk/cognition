@@ -13,6 +13,11 @@ export function needsApproval(alreadyRefunded: number, amount: number) {
   return alreadyRefunded + amount > APPROVAL_THRESHOLD;
 }
 
+export function maskEmail(email: string) {
+  const at = email.indexOf('@');
+  return at > 0 ? `${email[0]}•••${email.slice(at)}` : '•••';
+}
+
 export function startOfUtcDay(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }

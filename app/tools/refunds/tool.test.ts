@@ -4,7 +4,7 @@ import { decideAs, inProcessFetch, signInAs, useInProcessVendors } from '@/tests
 import manifest from './manifest';
 import access from './access';
 import { issueRefund } from './actions';
-import { needsApproval, startOfUtcDay, summarizeRefunds } from './rules';
+import { maskEmail, needsApproval, startOfUtcDay, summarizeRefunds } from './rules';
 
 type Persona = Parameters<typeof signInAs>[0];
 
@@ -72,6 +72,11 @@ describe('rules', () => {
         { reason: 'duplicate', amount: 150 },
       ],
     });
+  });
+
+  it('masks customer emails for display', () => {
+    expect(maskEmail('jane.doe@example.com')).toBe('j•••@example.com');
+    expect(maskEmail('not-an-email')).toBe('•••');
   });
 
   it('today starts at UTC midnight', () => {

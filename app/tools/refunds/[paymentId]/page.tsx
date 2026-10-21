@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import manifest from '../manifest';
 import { issueRefund } from '../actions';
 import { RefundFields } from '../refund-fields';
+import { maskEmail } from '../rules';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -80,7 +81,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ paymen
           <Field label="Amount"><Money amount={p.amount} currency={p.currency} /></Field>
           <Field label="Refunded"><Money amount={p.amount_refunded} currency={p.currency} /></Field>
           <Field label="Refundable"><Money amount={refundable} currency={p.currency} /></Field>
-          <Field label="Customer">{`${p.customer.name} · ${p.customer.email}`}</Field>
+          <Field label="Customer">{`${p.customer.name} · ${maskEmail(p.customer.email)}`}</Field>
           <Field label="Card">{`${p.payment_method.brand} •••• ${p.payment_method.last4}`}</Field>
           <Field label="Merchant">{p.merchant.name}</Field>
           <Field label="Created"><RelativeTime date={p.created} /></Field>
