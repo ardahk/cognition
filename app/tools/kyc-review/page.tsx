@@ -1,5 +1,5 @@
 import { moduleContext } from '@/platform/module';
-import { DataTable, PageHeader, StatusBadge } from '@/platform/ui';
+import { CursorPager, DataTable, PageHeader, StatusBadge } from '@/platform/ui';
 import { Button } from '@/components/ui/button';
 import manifest from './manifest';
 import { RISK_LEVELS, STATUSES } from './rules';
@@ -10,12 +10,13 @@ const LIMIT = 100;
 const selectClass =
   'h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
 
-type Search = { status?: string; risk?: string; mine?: string };
+type Search = { status?: string; risk?: string; mine?: string; after?: string };
 
 export default async function Page({ searchParams }: { searchParams: Promise<Search> }) {
   const ctx = await moduleContext(manifest);
   const sp = await searchParams;
-  const status = sp.status === 'all' ? undefined : STATUSES.find((s) => s === (sp.status ?? 'pending_review'));
+  const statusParam = sp.status === 'all' ? 'all' : (STATUSES.find((s) => s === sp.status) ?? 'pending_review');
+  const status = statusParam === 'all' ? undefined : statusParam;
   const risk = RISK_LEVELS.find((r) => r === sp.risk);
   const mine = sp.mine === '1';
 
@@ -24,6 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
     risk,
     assignee: mine ? ctx.user.email : undefined,
     limit: LIMIT,
+    startingAfter: sp.after,
   });
 
   return (
@@ -32,7 +34,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
       <form method="get" className="mb-4 flex flex-wrap items-end gap-3 text-sm">
         <label className="flex flex-col gap-1">
           Status
-          <select name="status" defaultValue={sp.status ?? 'pending_review'} className={selectClass}>
+          <select name="status" defaultValue={statusParam} className={selectClass}>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -74,11 +76,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Sea
           { header: 'SLA (24h)', cell: (c) => <Sla dueAt={c.sla_due_at} status={c.status} /> },
         ]}
       />
-      {hasMore ? (
-        <p className="pt-4 text-sm text-muted-foreground">
-          Showing the {LIMIT} oldest matching cases. Narrow the filters to see more.
-        </p>
-      ) : null}
+      <CursorPager nextCursor={hasMore ? cases.at(-1)?.id : undefined} />
     </div>
   );
 }

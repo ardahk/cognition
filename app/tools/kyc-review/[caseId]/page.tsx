@@ -153,24 +153,27 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       {ctx.can('kyc-review.decide') && open ? (
         <Section title="Decision">
           <div className="grid gap-4 md:grid-cols-2">
-            <ActionForm
-              action={approveCase}
-              hidden={{ caseId: c.id, signoff: String(signoff) }}
-              submitLabel={signoff ? 'Request approval sign-off' : 'Approve'}
-              className="flex flex-col gap-2"
-            >
-              <h3 className="text-sm font-medium">Approve</h3>
-              {signoff ? (
-                <p className="text-xs text-muted-foreground">
-                  Risk score ≥ 70 or a watchlist hit: a compliance officer must sign off before this approval takes effect.
-                </p>
-              ) : null}
-              {pendingApprove ? (
-                <p className="text-xs text-muted-foreground">An approval is already waiting for sign-off.</p>
-              ) : (
+            {pendingApprove ? (
+              <div className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium">Approve</h3>
+                <p className="text-xs text-muted-foreground">An approval is already waiting for compliance sign-off.</p>
+              </div>
+            ) : (
+              <ActionForm
+                action={approveCase}
+                hidden={{ caseId: c.id, signoff: String(signoff) }}
+                submitLabel={signoff ? 'Request approval sign-off' : 'Approve'}
+                className="flex flex-col gap-2"
+              >
+                <h3 className="text-sm font-medium">Approve</h3>
+                {signoff ? (
+                  <p className="text-xs text-muted-foreground">
+                    Risk score ≥ 70 or a watchlist hit: a compliance officer must sign off before this approval takes effect.
+                  </p>
+                ) : null}
                 <NoteField />
-              )}
-            </ActionForm>
+              </ActionForm>
+            )}
             <ActionForm action={declineCase} hidden={{ caseId: c.id }} submitLabel="Decline" className="flex flex-col gap-2">
               <h3 className="text-sm font-medium">Decline</h3>
               <select name="reasonCode" required defaultValue="" className={selectClass} aria-label="Reason code">

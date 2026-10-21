@@ -54,7 +54,7 @@ export const approveCase = defineAction(manifest, {
   handler: async ({ input, ctx }) => {
     const current = await ctx.connectors.kyc.getCase(input.caseId);
     if (needsSignoff(current) && !ctx.approvedBy) {
-      throw new Error('Approving this case needs compliance officer sign-off');
+      throw new Error('This case now needs compliance officer sign-off. Reload the page and request sign-off.');
     }
     if (ctx.approvedBy) ctx.record({ signedOffBy: ctx.approvedBy.email });
     const c = await ctx.connectors.kyc.decide(input.caseId, {
