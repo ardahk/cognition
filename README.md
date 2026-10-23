@@ -2,8 +2,6 @@
 
 **A thin, owned paved road for internal tools. Devin builds the tools and keeps them running.**
 
-- **Demo video:** _link added after recording_.
-
 ## The idea in three bullets
 
 - **The builder is becoming a commodity; the guardrails are what's worth paying for.** Microsoft now hosts React "code apps" on Power Platform and recommends AI coding agents for building them. What a platform still uniquely sells is the managed host: identity, connectors that keep credentials server-side, data-loss policies, approvals, audit, and environments.
