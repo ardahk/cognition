@@ -6,7 +6,6 @@ vi.mock('@/platform/registry.generated', async () => {
 });
 
 import { permissionsFor, rolesWithPermission, visibleModules } from '@/platform/access';
-import { manifest } from '@/tests/fixtures/test-module';
 
 describe('access', () => {
   it('support_agent gets view + refund but not approve', () => {
@@ -28,7 +27,6 @@ describe('access', () => {
       'test-refunds',
     ]);
     expect(visibleModules(permissionsFor(['kyc_analyst']))).toEqual([]);
-    expect(manifest.nav.icon).toBe('receipt');
   });
 
   it('rolesWithPermission finds granting roles', () => {

@@ -19,7 +19,7 @@ You are reviewing changes to Fernpay's internal-tools platform. These tools move
 
 - `access.ts` grants more than the request needs, or the PR description doesn't justify a grant.
 - `manifest.risk` or the connector scopes are wider than the tool uses.
-- Tests don't cover the request's business rules: who can do what, approval thresholds, blocked self-approval, and exactly-once behavior on retry for money movement.
+- Tests don't cover the request's business rules: who can do what, approval thresholds, and exactly-once behavior on retry for money movement. Tests that only re-prove platform guarantees, such as self-approval blocking, don't count.
 - Money is handled as floats or formatted by hand instead of with `<Money>` and the `money` helper.
 - The change adds new dependencies, speculative abstractions, dead code, or a copy of something the platform already provides.
 

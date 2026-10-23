@@ -4,6 +4,8 @@ import { db, sql } from '@/platform/db/client';
 import { auditEvents, approvalRequests } from '@/platform/db/schema';
 import { signInAs, signOut, useInProcessVendors } from '@/tests/helpers';
 import { payments } from '@/mock-vendors/schema';
+import { moduleContext, money } from '@/platform/module';
+import { manifest } from '@/tests/fixtures/test-module';
 
 vi.mock('@/platform/registry.generated', async () => {
   const { manifest, access } = await import('@/tests/fixtures/test-module');
@@ -39,16 +41,16 @@ describe('defineAction', () => {
     useInProcessVendors();
   });
 
-  it('unauthenticated → UNAUTHENTICATED, no audit rows', async () => {
+  it('unauthenticated → UNAUTHENTICATED before input validation, no audit rows', async () => {
     signOut();
-    const res = await echo({ message: 'hi' });
+    const res = await echo({ message: 42 });
     expect(res).toMatchObject({ ok: false, error: 'UNAUTHENTICATED' });
     expect(await auditRows()).toHaveLength(0);
   });
 
-  it('forbidden → FORBIDDEN + one denied row', async () => {
+  it('forbidden → FORBIDDEN before input validation, one denied row', async () => {
     signInAs('sam');
-    const res = await echo({ message: 'hi' });
+    const res = await echo({ message: 42 });
     expect(res).toMatchObject({ ok: false, error: 'FORBIDDEN' });
     const rows = await auditRows();
     expect(rows).toHaveLength(1);
@@ -154,5 +156,27 @@ describe('defineAction', () => {
     if (!res.ok) expect(res.message).toContain('requires scope "refund"');
     const rows = await auditRows(KEY);
     expect(rows[1].error).toContain('payments.createRefund requires scope "refund"');
+  });
+});
+
+describe('moduleContext', () => {
+  it('redirects to /login with no session', async () => {
+    signOut();
+    await expect(moduleContext(manifest)).rejects.toThrow('redirect(/login)');
+  });
+});
+
+describe('money', () => {
+  it.each([
+    ['250.01', 25001],
+    ['250', 25000],
+    ['1.2', 120],
+    ['0.01', 1],
+  ])('parses %s dollars → %i cents', (input, cents) => {
+    expect(money.parse(input)).toBe(cents);
+  });
+
+  it.each(['0.00', 'abc', '1.234', '-5.00'])('rejects %s', (input) => {
+    expect(() => money.parse(input)).toThrow();
   });
 });

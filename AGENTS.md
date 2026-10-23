@@ -149,10 +149,11 @@ If the ledger call fails after the refund succeeded, the attempt is recorded as 
 - Unit tests sit next to the code and run with Vitest against the test database.
 - Helpers in `@/tests/helpers`:
   - `signInAs('<persona>')` and `signOut()`.
-  - `decideAs('<persona>', approvalId, 'approve' | 'reject')` decides an approval request as that persona, who stays signed in. Use it to test approve → execute, blocked self-approval (`SELF_APPROVAL`), and post-hoc reviews.
+  - `decideAs('<persona>', approvalId, 'approve' | 'reject')` decides an approval request as that persona, who stays signed in. Use it to test approve → execute, reject, and post-hoc reviews.
   - `useInProcessVendors()` routes connector calls to the mock vendors in-process.
 - `platform/money-movement.test.ts` shows how to prove exactly-once behavior on retry.
-- Every tool needs real tests for its business rules: permission boundaries, approval thresholds, and blocked self-approval.
+- Every tool needs real tests for its business rules: who can and can't run each action, approval thresholds at their boundaries (including that a requester who also holds the approve permission still waits for approval), and, for money movement, exactly-once behavior on retry.
+- Don't re-test platform guarantees in a tool. Self-approval blocking, atomic approval claims, denial auditing, and the audit lifecycle are each proven once in `platform/` tests.
 
 Personas (dev sign-in at `/login`):
 

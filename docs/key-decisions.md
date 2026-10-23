@@ -11,7 +11,7 @@ An internal-tools platform like Power Apps sells two things. The first is a **bu
    - runtime wrappers: `defineAction` and `moduleContext`;
    - connectors limited to the scopes a tool declares (the equivalent of data-loss policies);
    - an ESLint import allowlist;
-   - conformance tests, plus a runtime check that every action rejects users without its permission;
+   - conformance tests that force every action through `defineAction`, which rejects unauthorized calls before anything runs;
    - CODEOWNERS on access grants;
    - `REVIEW.md` rules for Devin Review.
 

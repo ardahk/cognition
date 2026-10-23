@@ -34,7 +34,6 @@ export type ActionSpec<M extends ModuleManifest, I extends z.ZodType, O> = {
     input: z.output<I>,
     ctx: { user: SessionUser; roles: Role[] },
   ) => ApprovalRule<M> | null;
-  auditRedact?: (keyof z.output<I>)[];
   handler: (args: { input: z.output<I>; ctx: ActionContext<M> }) => Promise<O>;
 };
 
@@ -75,12 +74,6 @@ function actorFields(user: SessionUser, roles: Role[]) {
   };
 }
 
-function redactInput(input: unknown, keys: readonly (string | number | symbol)[] | undefined) {
-  const out = { ...(input as Record<string, unknown>) };
-  for (const k of keys ?? []) out[k as string] = '[redacted]';
-  return out;
-}
-
 function errorMessage(e: unknown): string {
   if (e instanceof VendorError) return `[${e.vendor} ${e.status} ${e.type}] ${e.message}`;
   return e instanceof Error ? e.message : String(e);
@@ -103,7 +96,6 @@ export async function execute<M extends ModuleManifest>(
   const { module: manifest, name, spec } = meta;
   const attemptId = randomUUID();
   const target = spec.target?.(input);
-  const redacted = redactInput(input, spec.auditRedact);
   const base = {
     ...actorFields(run.actor, run.roles),
     module: manifest.id,
@@ -114,7 +106,7 @@ export async function execute<M extends ModuleManifest>(
     targetId: target?.id ?? null,
     approvalId: run.approvalId ?? null,
     approvedBy: run.approvedBy?.email ?? null,
-    input: redacted,
+    input,
   };
 
   // Write-ahead: a committed single insert before any connector call.
@@ -227,7 +219,7 @@ export function defineAction<M extends ModuleManifest, I extends z.ZodType, O>(
           idempotencyKey,
           targetType: target?.type ?? null,
           targetId: target?.id ?? null,
-          input: redactInput(input, spec.auditRedact),
+          input,
           ...actorFields(user, roles),
         });
       }

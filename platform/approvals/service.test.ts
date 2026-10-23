@@ -7,6 +7,7 @@ import { rolesForGroups } from '@/platform/auth/roles';
 import { PERSONAS } from '@/platform/auth/personas';
 import type { Session, SessionUser } from '@/platform/auth/session';
 import { decideApproval } from '@/platform/approvals/service';
+import { listApprovals } from '@/platform/approvals/store';
 import { signInAs, useInProcessVendors } from '@/tests/helpers';
 import { breakGlass, refund, refundCalls } from '@/tests/fixtures/actions';
 import { payments } from '@/mock-vendors/schema';
@@ -168,5 +169,30 @@ describe('decideApproval', () => {
       .from(approvalRequests)
       .where(eq(approvalRequests.id, res.reviewId));
     expect(request.status).toBe('reviewed');
+  });
+
+  it('needsMyApproval lists a pending request only for users holding its approver permission, never its requester', async () => {
+    const queueOf = async (s: Session) =>
+      (await listApprovals.needsMyApproval(s)).map((r) => r.id);
+    const { id } = await createRequest();
+    expect(await queueOf(priya)).toContain(id);
+    expect(await queueOf(sam)).not.toContain(id);
+
+    signInAs('priya');
+    const own = await createRequest();
+    expect(await queueOf(priya)).toContain(id);
+    expect(await queueOf(priya)).not.toContain(own.id);
+    expect(await queueOf(otherOpsLead)).toContain(own.id);
+  });
+
+  it('needsReview lists a post-hoc item for other reviewers but not the actor', async () => {
+    signInAs('priya');
+    const res = await breakGlass({ idempotencyKey: crypto.randomUUID() });
+    if (!(res.ok && res.status === 'succeeded' && res.reviewId)) throw new Error('expected reviewId');
+    const reviewOf = async (s: Session) =>
+      (await listApprovals.needsReview(s)).map((r) => r.id);
+    expect(await reviewOf(otherOpsLead)).toContain(res.reviewId);
+    expect(await reviewOf(priya)).not.toContain(res.reviewId);
+    expect(await reviewOf(sam)).not.toContain(res.reviewId);
   });
 });
