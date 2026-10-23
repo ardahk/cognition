@@ -107,7 +107,7 @@ flowchart TB
 | Reads via `moduleContext`, writes via `defineAction` | Runtime wrappers, conformance (`PAGE_WITHOUT_CONTEXT`, `ACTION_UNWRAPPED`), Devin Review |
 | Tools import only `@/platform/{define,module,ui}` | ESLint allowlist + conformance (`FORBIDDEN_IMPORT`) |
 | No `fetch` / `process.env` / route handlers in tools | ESLint + conformance (`ROUTE_HANDLER`) |
-| Every action rejects users without its permission | `tests/paved-road.test.ts` (runtime check of every registered action) |
+| Every action rejects users without its permission | Conformance (`ACTION_UNWRAPPED`) forces every action through `defineAction`, which checks the session and permission before validating input (`platform/module.test.ts`) |
 | Connector scopes ⇒ risk tier | Types, a runtime proxy (`ConnectorScopeError`), conformance (`RISK_MISMATCH`) |
 | Access grants reviewed by security | CODEOWNERS on `app/tools/*/access.ts` and `manifest.ts` |
 | Scaffolds aren't shippable until tested | Conformance (`TESTS_TODO`, `DESCRIPTION_TODO`) |

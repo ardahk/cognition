@@ -95,7 +95,7 @@ On the platform today, the same tools still need engineers. Internal payments an
 | Risk | Mitigation |
 |---|---|
 | A bad tool takes down the host | Per-tool error boundaries, CI gates, scoped connectors. Split hosts by domain past ~50 tools. |
-| Review fatigue lets risky code through | Mechanical guardrails (lint allowlist, conformance, runtime permission tests), Devin Review rules, and a risk tier on every PR. Critical-tier tools get a second reviewer. |
+| Review fatigue lets risky code through | Mechanical guardrails (lint allowlist, conformance, permission tests), Devin Review rules, and a risk tier on every PR. Critical-tier tools get a second reviewer. |
 | A double refund or double ledger posting | Idempotency keys end to end, `external_id` = refund id, atomic approval claims, write-ahead audit. A test proves exactly-once behavior on retry. |
 | Unresolved attempts after a crash | Surfaced on `/audit`. Retrying with the same key is safe. A reconciler job is on the roadmap. |
 | The platform owner leaves | Small codebase, `AGENTS.md`, DeepWiki docs, and Devin can explain any part of it |

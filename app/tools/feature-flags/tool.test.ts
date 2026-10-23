@@ -173,7 +173,7 @@ describe('production', () => {
     expect(await getFlag(f.key)).toMatchObject({ environments: f.environments });
   });
 
-  it('an eng lead approves another engineer\'s production change but not their own', async () => {
+  it("an eng lead approves another engineer's production change", async () => {
     const f = await takeFlag();
     signInAs('jordan');
     const res = await change(f, 'production', true, 10);
@@ -186,20 +186,6 @@ describe('production', () => {
     expect((await getFlag(f.key)).environments.production).toEqual({
       enabled: true,
       rollout_percentage: 10,
-    });
-
-    const own = await takeFlag();
-    signInAs('taylor');
-    const ownRes = await change(own, 'production', true, 25);
-    expect(ownRes).toMatchObject({ ok: true, status: 'pending_approval' });
-    const ownId = (ownRes as { approvalId: string }).approvalId;
-    expect(await decideAs('taylor', ownId, 'approve')).toMatchObject({
-      ok: false,
-      error: 'SELF_APPROVAL',
-    });
-    expect(await getFlag(own.key)).toMatchObject({
-      environments: own.environments,
-      version: own.version,
     });
   });
 });

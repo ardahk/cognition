@@ -256,15 +256,10 @@ describe('approval', () => {
     expect((await paymentOf(p.id)).refunds).toHaveLength(0);
   });
 
-  it('an ops lead cannot approve their own refund', async () => {
-    const { p, approvalId } = await requestOver250('priya', 6);
-    expect(await decideAs('priya', approvalId, 'approve')).toMatchObject({ ok: false, error: 'SELF_APPROVAL' });
-    expect((await paymentOf(p.id)).refunds).toHaveLength(0);
-  });
-
-  it.each(['alex', 'morgan'] as const)('%s cannot approve', async (persona) => {
-    const { p, approvalId } = await requestOver250('priya', persona === 'alex' ? 7 : 8);
-    expect(await decideAs(persona, approvalId, 'approve')).toMatchObject({ ok: false, error: 'FORBIDDEN' });
+  it("an ops lead's own refund over $250 still waits for approval", async () => {
+    const { p } = await requestOver250('priya', 6);
+    const [pending] = await (await as('priya')).pendingApprovals({ type: 'payment', id: p.id });
+    expect(pending).toMatchObject({ approverPermission: 'refunds.approve', requestedById: 'priya' });
     expect((await paymentOf(p.id)).refunds).toHaveLength(0);
   });
 

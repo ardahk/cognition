@@ -37,10 +37,10 @@ Run `npm run tool:new -- <id> "<Name>"`, then fill in `manifest.ts` and `access.
 
 Replace the scaffold's `it.todo` with real tests in the tool folder. Cover:
 - Permission boundaries: who can and cannot run each action.
-- Approval thresholds, and that self-approval is blocked.
+- Approval thresholds at their boundaries, including that a requester who also holds the approve permission still goes to pending.
 - For money movement: a retry with the same idempotency key does not move money or post to the ledger twice.
 
-For patterns, see `platform/**/*.test.ts` and the helpers in `tests/helpers.ts`: `signInAs`, `decideAs` (approve or reject as a second persona, and prove self-approval is blocked), and `useInProcessVendors`.
+Don't re-test what the platform already proves, such as self-approval blocking or approval claims. For patterns, see `platform/**/*.test.ts` and the helpers in `tests/helpers.ts`: `signInAs`, `decideAs` (approve or reject as a second persona), and `useInProcessVendors`.
 
 ## 5. Check, then open the PR
 
