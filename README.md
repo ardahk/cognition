@@ -2,9 +2,7 @@
 
 **A thin, owned paved road for internal tools. Devin builds the tools and keeps them running.**
 
-- **The answer:** [`docs/recommendation.md`](docs/recommendation.md).
-- **Why the prototype looks the way it does:** [`docs/key-decisions.md`](docs/key-decisions.md).
-- **Demo video:** _link added after recording_ (script: [`docs/demo-script.md`](docs/demo-script.md)).
+- **Demo video:** _link added after recording_.
 
 ## The idea in three bullets
 
@@ -135,7 +133,6 @@ templates/tool/      scaffold used by `npm run tool:new`
 tests/               test setup, helpers, fixtures, paved-road conformance
 .agents/skills/      Devin skills: new-tool, change-tool, test-tool
 devin/               automations, playbooks, security profiles, environment blueprint, example requests
-docs/                recommendation, key decisions, demo script
 ```
 
 ## What's mocked, and the limits
